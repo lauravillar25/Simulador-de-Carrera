@@ -1,87 +1,107 @@
-const MAX_AVANCE = 5; 
-let corredores = []; 
-let longitudCarrera = 0; 
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("formCarrera");
+  const historialSeccion = document.getElementById("historial");
+  const listaHistorial = document.getElementById("listaHistorial");
+  const verResultadosBtn = document.getElementById("verResultados");
+  const modal = document.getElementById("modal");
+  const modalResultados = document.getElementById("modalResultados");
+  const cerrarModalBtn = document.getElementById("cerrarModal");
 
+  const MAX_AVANCE = 5;
+  let historial = JSON.parse(localStorage.getItem("historial")) || [];
+  let ultimaCarrera = [];
 
-function obtenerCorredores() {
-    corredores = []; 
+  function guardarHistorial(carrera) {
+    historial.push(carrera);
+    localStorage.setItem("historial", JSON.stringify(historial));
+  }
 
-    let cantidadCorredores = parseInt(prompt("Ingrese la cantidad de corredores (mínimo 2):"));
-
-    while (isNaN(cantidadCorredores) || cantidadCorredores < 2) {
-        cantidadCorredores = parseInt(prompt("Entrada inválida. Ingrese un número válido de corredores (2 o más):"));
+  function mostrarHistorial() {
+    listaHistorial.innerHTML = "";
+    historial.forEach((c, index) => {
+      const li = document.createElement("li");
+      li.textContent = `${index + 1}. ${c.fecha} - Ganador: ${c.ganador}, Pasos: ${c.pasos}`;
+      listaHistorial.appendChild(li);
+    });
+    if (historial.length > 0) {
+      historialSeccion.classList.remove("oculto");
     }
+  }
 
-    for (let i = 1; i <= cantidadCorredores; i++) {
-        let nombre = prompt(`Ingrese el nombre del corredor ${i}:`);
-        corredores.push({ nombre: nombre, posicion: 0 });
-    }
-
-    console.log("Corredores inscritos:", corredores);
-}
-
-
-function obtenerLongitud() {
-    longitudCarrera = parseInt(prompt("Ingrese la longitud de la carrera (en pasos):"));
-
-    while (isNaN(longitudCarrera) || longitudCarrera <= 0) {
-        longitudCarrera = parseInt(prompt("Entrada inválida. Ingrese un número positivo para la longitud de la carrera:"));
-    }
-
-    console.log("Longitud de la carrera:", longitudCarrera, "pasos");
-}
-
-
-function simularCarrera() {
-    console.log("\n¡Comienza la carrera!");
-
+  function simularCarrera(nombres, longitud) {
+    let corredores = nombres.map(nombre => ({ nombre: nombre.trim(), posicion: 0 }));
     let ganador = null;
 
     while (!ganador) {
-        console.clear(); 
-
-        for (let i = 0; i < corredores.length; i++) {
-            let avance = Math.floor(Math.random() * MAX_AVANCE) + 1;
-            corredores[i].posicion += avance;
-
-            const pistaVisible = 30;
-            let progresoVisible = Math.min(corredores[i].posicion, pistaVisible);
-            console.log(`${corredores[i].nombre}: ${"-".repeat(progresoVisible)}🏁`);
-
-            if (corredores[i].posicion >= longitudCarrera) {
-                ganador = corredores[i].nombre;
-                break;
-            }
+      corredores.forEach(corredor => {
+        corredor.posicion += Math.floor(Math.random() * MAX_AVANCE) + 1;
+        if (corredor.posicion >= longitud && !ganador) {
+          ganador = corredor.nombre;
         }
-
-        if (!ganador) {
-            console.log("\n--- Posiciones actuales ---");
-            corredores.forEach(c => console.log(`${c.nombre}: ${c.posicion} pasos`));
-            console.log("--- Siguiente turno ---\n");
-        }
+      });
     }
 
-    alert(`¡${ganador} ha ganado la carrera!`);
-    console.log("\n🏆 ¡Resultados Finales! 🏆");
+    return { ganador, corredores };
+  }
 
-    corredores.sort((a, b) => b.posicion - a.posicion);
+  function mostrarResultados(corredores, longitud) {
+    modalResultados.innerHTML = `
+      <h3>Posiciones Finales</h3>
+      <div>
+        ${corredores
+          .sort((a, b) => b.posicion - a.posicion)
+          .map(c => `
+            <div class="progress-bar" style="--progreso:${Math.min((c.posicion / longitud) * 100, 100)}%">
+              <span class="progress-label">${c.nombre}: ${c.posicion} pasos</span>
+            </div>`)
+          .join("")}
+      </div>
+    `;
+    modal.classList.remove("oculto"); 
+  }
 
-    for (let i = 0; i < corredores.length; i++) {
-        console.log(`Posición ${i + 1}: ${corredores[i].nombre} - ${corredores[i].posicion} pasos`);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+
+    const nombresInput = document.getElementById("nombres").value;
+    const longitudInput = parseInt(document.getElementById("longitud").value);
+    const nombres = nombresInput.split(",").map(n => n.trim()).filter(n => n);
+
+    if (nombres.length < 2) {
+      alert("Debe ingresar al menos dos corredores.");
+      return;
     }
 
-    let mensajeFinal = "🏁 Resultados Finales:\n\n";
-    for (let i = 0; i < corredores.length; i++) {
-        mensajeFinal += `${i + 1}. ${corredores[i].nombre} - ${corredores[i].posicion} pasos\n`;
+    if (isNaN(longitudInput) || longitudInput <= 0) {
+      alert("La longitud de la carrera debe ser un número positivo.");
+      return;
     }
-    alert(mensajeFinal);
-}
 
+    const resultadoCarrera = simularCarrera(nombres, longitudInput);
+    const { ganador, corredores } = resultadoCarrera;
+    const fecha = new Date().toLocaleString();
 
-if (confirm("¿Desea iniciar una nueva carrera?")) {
-    obtenerCorredores();   
-    obtenerLongitud();      
-    simularCarrera();       
-} else {
-    alert("Carrera cancelada.");
-}
+    guardarHistorial({ fecha, ganador, corredores, pasos: longitudInput });
+    ultimaCarrera = corredores;
+    mostrarHistorial();
+    mostrarResultados(corredores, longitudInput);
+    verResultadosBtn.classList.remove("oculto");
+  });
+
+  verResultadosBtn.addEventListener("click", () => {
+    if (ultimaCarrera.length > 0) {
+      const longitudInput = parseInt(document.getElementById("longitud").value);
+      mostrarResultados(ultimaCarrera, longitudInput);
+    } else {
+      alert("Debe simular una carrera primero.");
+    }
+  });
+
+  cerrarModalBtn.addEventListener("click", () => {
+    modal.classList.add("oculto");
+  });
+
+  mostrarHistorial();
+
+  modal.classList.add("oculto"); 
+});
